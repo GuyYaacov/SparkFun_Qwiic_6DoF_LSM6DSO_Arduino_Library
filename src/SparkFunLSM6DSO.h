@@ -65,9 +65,10 @@ public:
 	status_t readMultipleRegisters(uint8_t*, uint8_t, uint8_t );
 	status_t readRegister(uint8_t*, uint8_t);
 	status_t readRegisterInt16(int16_t*, uint8_t);
+	status_t readRegisterInt16all(int16_t*, uint8_t);
 	status_t writeRegister(uint8_t, uint8_t);
 	status_t writeMultipleRegisters(uint8_t*, uint8_t, uint8_t);
-  status_t enableEmbeddedFunctions(bool = true);
+  	status_t enableEmbeddedFunctions(bool = true);
 
   SPISettings mySpiSettings; 
 	
@@ -186,6 +187,7 @@ class LSM6DSO : public LSM6DSOCore
     uint8_t  getAccelFullScale();
     uint8_t  getAccelHighPerf();
 
+	int16_t* readRawAll();
     int16_t readRawAccelX();
     int16_t readRawAccelY();
     int16_t readRawAccelZ();
@@ -193,6 +195,7 @@ class LSM6DSO : public LSM6DSOCore
     int16_t readRawGyroY();
     int16_t readRawGyroZ();
 
+	float* readFloatAll();
     float readFloatAccelX();
     float readFloatAccelY();
     float readFloatAccelZ();

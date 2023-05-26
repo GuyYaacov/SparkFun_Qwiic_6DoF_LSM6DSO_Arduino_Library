@@ -205,6 +205,41 @@ status_t LSM6DSOCore::readRegisterInt16(int16_t* outputPointer, uint8_t address)
 }
 
 //****************************************************************************//
+//  readRegisterInt16
+//
+//  Parameters:
+//    *outputPointer -- Pass &variable (base address of) to save read data to
+//    address -- register to read
+//****************************************************************************//
+status_t LSM6DSOCore::readRegisterInt16all(int16_t outputPointer[], uint8_t address) 
+{
+	uint8_t myBuffer[12];
+	status_t returnError = readMultipleRegisters(myBuffer, address, 12);  //Does memory transfer
+  uint8_t gx_buffer[2], gy_buffer[2], gz_buffer[2], ax_buffer[2], ay_buffer[2], az_buffer[2];
+  gx_buffer[0] = myBuffer[0];
+  gx_buffer[1] = myBuffer[1];
+  gy_buffer[0] = myBuffer[2];
+  gy_buffer[1] = myBuffer[3];
+  gz_buffer[0] = myBuffer[4];
+  gz_buffer[1] = myBuffer[5];
+  ax_buffer[0] = myBuffer[6];
+  ax_buffer[1] = myBuffer[7];
+  ay_buffer[0] = myBuffer[8];
+  ay_buffer[1] = myBuffer[9];
+  az_buffer[0] = myBuffer[10];
+  az_buffer[1] = myBuffer[11];
+
+  outputPointer[0] = gx_buffer[0] | static_cast<uint16_t>(gx_buffer[1] << 8);
+  outputPointer[1] = gy_buffer[0] | static_cast<uint16_t>(gy_buffer[1] << 8);
+  outputPointer[2] = gz_buffer[0] | static_cast<uint16_t>(gz_buffer[1] << 8);
+  outputPointer[3] = ax_buffer[0] | static_cast<uint16_t>(ax_buffer[1] << 8);
+  outputPointer[4] = ay_buffer[0] | static_cast<uint16_t>(ay_buffer[1] << 8);
+  outputPointer[5] = az_buffer[0] | static_cast<uint16_t>(az_buffer[1] << 8);
+  
+	return returnError;
+}
+
+//****************************************************************************//
 //  writeRegister
 //
 //  Parameters:
@@ -963,6 +998,93 @@ int16_t LSM6DSO::readRawAccelX() {
 	return output;
 }
 
+float* LSM6DSO::readFloatAll() {
+  int16_t *outputi;
+  outputi = readRawAll();
+  static float outputFloat[6], g[3], a[3];
+  
+
+  // Gyro and Accel calculations
+  uint8_t gyroRange;  
+  uint8_t fullScale;
+  readRegister(&gyroRange, CTRL2_G) ;
+  fullScale = (gyroRange >> 1) & 0x01; 
+  gyroRange = (gyroRange >> 2) & 0x03; 
+
+  for (int i = 0; i < 3; i++) {
+    if( fullScale )
+      g[i] = (static_cast<float>(outputi[i]) * 4.375)/1000;
+    else {
+      switch( gyroRange ){
+        case 0:
+          g[i] = (static_cast<float>(outputi[i]) * 8.75)/1000;
+          break;
+        case 1:
+          g[i] = (static_cast<float>(outputi[i]) * 17.50)/1000;
+          break;
+        case 2:
+          g[i] = (static_cast<float>(outputi[i]) * 35)/1000;
+          break;
+        case 3:
+          g[i] = (static_cast<float>(outputi[i]) * 70)/1000;
+          break;
+      }
+    }
+  }
+
+  uint8_t accelRange; 
+  uint8_t scale;
+  readRegister(&accelRange, CTRL1_XL);
+  scale = (accelRange >> 1) & 0x01;
+  accelRange = (accelRange >> 2) & (0x03); 
+
+  for (int i = 0; i < 3; i++) {
+    if( scale == 0 ) {
+    switch( accelRange ){
+      case 0:// Register value 0: 2g
+        a[i] = (static_cast<float>(outputi[i+3]) * (.061)) / 1000;
+        break;
+      case 1: //Register value 1 : 16g
+        a[i] = (static_cast<float>(outputi[i+3]) * (.488)) / 1000;
+        break;
+      case 2: //Register value 2 : 4g
+        a[i] = (static_cast<float>(outputi[i+3]) * (.122)) / 1000;
+        break;
+      case 3://Register value 3: 8g
+        a[i] = (static_cast<float>(outputi[i+3]) * (.244)) / 1000;
+        break;
+    }
+  }
+
+  if( scale == 1 ){
+    switch( accelRange ){
+      case 0: //Register value 0: 2g
+        a[i] = (static_cast<float>(outputi[i+3]) * (0.061)) / 1000;
+        break;
+      case 1://Register value 1: 2g
+        a[i] = (static_cast<float>(outputi[i+3]) * (0.061)) / 1000;
+        break;
+      case 2://Register value 2: 4g
+        a[i] = (static_cast<float>(outputi[i+3]) * (.122)) / 1000;
+        break;
+      case 3://Register value 3: 8g
+        a[i] = (static_cast<float>(outputi[i+3]) * (.244)) / 1000;
+        break;
+    }
+  }
+  }
+
+
+  outputFloat[0] = g[0];
+  outputFloat[1] = g[1];
+  outputFloat[2] = g[2];
+  outputFloat[3] = a[0];
+  outputFloat[4] = a[1];
+  outputFloat[5] = a[2];
+  
+  return outputFloat;
+}
+
 float LSM6DSO::readFloatAccelX() {
 	float output = calcAccel(readRawAccelX());
 	return output;
@@ -1227,6 +1349,21 @@ uint16_t LSM6DSO::getGyroRange(){
     default:
       return IMU_GENERIC_ERROR;
   }
+}
+
+int16_t* LSM6DSO::readRawAll() {
+
+	static int16_t output[6];
+	status_t errorLevel = readRegisterInt16all(output, OUTX_L_G );
+
+	if( errorLevel != IMU_SUCCESS ) {
+		if( errorLevel == IMU_ALL_ONES_WARNING )
+			allOnesCounter++;
+		else
+			nonSuccessCounter++;
+	}
+  return output;
+
 }
 
 int16_t LSM6DSO::readRawGyroX() {
